@@ -1,9 +1,10 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 
-// Configuración del empaquetador: habilita JSX/React y genera rutas relativas
-// para que el resultado compilado también funcione desde una carpeta estática.
+/** Configuración de compilación y servidor de desarrollo. */
 export default defineConfig({
+  // Transforma JSX/TSX y activa la actualización rápida de componentes.
   plugins: [react()],
+  // Las rutas relativas permiten publicar `dist` dentro de cualquier subcarpeta.
   base: './',
 });
