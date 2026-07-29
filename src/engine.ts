@@ -156,8 +156,7 @@ export class SimulationEngine {
   private preempt(current: RuntimeProcess, next: RuntimeProcess, nextLevel: Level) {
     current.state = 'Listo';
     current.isNewArrival = false;
-    if (this.config.algorithms[current.level] === 'RR') this.ready[current.level].unshift(current);
-    else this.ready[current.level].push(current);
+    this.ready[current.level].push(current);
     this.changeZone(current, `Cola N${current.level}` as Zone);
     this.register(`P${next.pid} (nivel ${nextLevel}) DESALOJA a P${current.pid} (nivel ${current.level}) de la CPU`);
     this.startExecution(next, nextLevel);
@@ -166,7 +165,7 @@ export class SimulationEngine {
   /**
    * Decide si hay que asignar o desalojar la CPU.
    * Un nivel numéricamente menor siempre prevalece; dentro de la misma cola
-   * sólo el algoritmo de prioridad puede provocar desalojo inmediato.
+   * Prioridad y SJF pueden provocar un desalojo inmediato.
    */
   private schedule() {
     if (!this.cpu) {
@@ -180,9 +179,19 @@ export class SimulationEngine {
       const candidate = this.best(level as Level);
       if (candidate) return this.preempt(this.cpu, candidate, level as Level);
     }
-    if (this.config.algorithms[this.cpu.level] === 'Prioridad') {
-      const candidate = this.best(this.cpu.level);
-      if (candidate && candidate.currentPriority < this.cpu.currentPriority) this.preempt(this.cpu, candidate, this.cpu.level);
+    const algorithm = this.config.algorithms[this.cpu.level];
+    const candidate = this.best(this.cpu.level);
+    if (!candidate) return;
+
+    // Prioridad usa el menor número y SJF la menor ráfaga restante. La
+    // comparación es estricta para que un empate no desaloje innecesariamente.
+    const hasBetterPriority = algorithm === 'Prioridad'
+      && candidate.currentPriority < this.cpu.currentPriority;
+    const hasShorterRemainingBurst = algorithm === 'SJF'
+      && candidate.remainingBurst < this.cpu.remainingBurst;
+
+    if (hasBetterPriority || hasShorterRemainingBurst) {
+      this.preempt(this.cpu, candidate, this.cpu.level);
     }
   }
 
@@ -221,7 +230,9 @@ export class SimulationEngine {
   step() {
     if (this.isFinished) return;
     const at = this.time;
-    // Incorporar todos los procesos cuya llegada coincide con el reloj actual.
+    // Incorporar primero todos los procesos cuya llegada coincide con el reloj
+    // actual. Así, si también termina una E/S en este instante, la llegada
+    // nueva queda físicamente delante del retorno en la misma cola.
     while (this.pending[0]?.arrivalTime === at) {
       const process = this.pending.shift()!;
       process.queueEntryTime = at;
@@ -229,7 +240,7 @@ export class SimulationEngine {
       this.changeZone(process, `Cola N${process.level}` as Zone);
       this.register(`P${process.pid} LLEGA al sistema → cola Nivel ${process.level} (t_ingreso=${at}ms${process.level === 1 ? `, prioridad=${process.currentPriority}` : ''})`);
     }
-    // Los procesos cuya E/S termina vuelven a su cola original.
+    // Los retornos de E/S se añaden después de las llegadas y al final de cola.
     const stillBlocked: RuntimeProcess[] = [];
     for (const process of this.blocked) {
       if (process.ioEndTime === at) {

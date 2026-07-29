@@ -257,22 +257,27 @@ function DetailDialog({ type, snapshot, onClose }: { type: Exclude<Dialog, null>
 function CalculationsView({ snapshot }: { snapshot: SimulationSnapshot }) {
   const calculations = useMemo(() => snapshot.all.map((process) => {
     const totalIo = process.ioDurations.reduce((sum, duration) => sum + duration, 0);
-    const execution = process.completionTime == null ? null : process.completionTime - process.arrivalTime;
-    const waiting = execution == null ? null : execution - process.totalBurst - totalIo;
-    return { process, totalIo, execution, waiting };
+    const turnaround = process.completionTime == null ? null : process.completionTime - process.arrivalTime;
+    const waiting = turnaround == null ? null : turnaround - process.totalBurst - totalIo;
+    return { process, totalIo, turnaround, waiting };
   }), [snapshot.all]);
 
   return <div className="calculations-grid">
-    <CalculationColumn kind="waiting" title="Tiempo de espera medio" subtitle="Ejecución − CPU − E/S" value={snapshot.metrics?.averageWaiting ?? null} calculations={calculations} />
+    <CalculationColumn kind="waiting" title="Tiempo de espera medio" subtitle="Finalización − llegada − CPU − E/S" value={snapshot.metrics?.averageWaiting ?? null} calculations={calculations} />
     <CalculationColumn kind="execution" title="Tiempo de ejecución medio" subtitle="Finalización − llegada" value={snapshot.metrics?.averageTurnaround ?? null} calculations={calculations} />
   </div>;
 }
 
 /** Representa una de las dos métricas y el aporte de cada proceso al promedio. */
-function CalculationColumn({ kind, title, subtitle, value, calculations }: { kind: 'waiting' | 'execution'; title: string; subtitle: string; value: number | null; calculations: { process: SimulationSnapshot['all'][number]; totalIo: number; execution: number | null; waiting: number | null }[] }) {
-  return <section className={`calculation-column calculation-${kind}`}><header><div><span>{title}</span><small>{subtitle}</small></div><strong>{value == null ? 'Pendiente' : `${value.toFixed(2)} ms`}</strong></header><div className="calculation-list">{calculations.map(({ process, totalIo, execution, waiting }) => {
-    const result = kind === 'waiting' ? waiting : execution;
-    return <article key={process.pid}><i style={{ background: processColor(process.pid) }} /><div><strong>{process.nombre}</strong><small>{kind === 'waiting' ? (execution == null ? 'Esperando finalización' : `${execution} − ${process.totalBurst} − ${totalIo}`) : (process.completionTime == null ? 'Esperando finalización' : `${process.completionTime} − ${process.arrivalTime}`)}</small></div><b>{result == null ? '—' : `${result} ms`}</b></article>;
+function CalculationColumn({ kind, title, subtitle, value, calculations }: { kind: 'waiting' | 'execution'; title: string; subtitle: string; value: number | null; calculations: { process: SimulationSnapshot['all'][number]; totalIo: number; turnaround: number | null; waiting: number | null }[] }) {
+  return <section className={`calculation-column calculation-${kind}`}><header><div><span>{title}</span><small>{subtitle}</small></div><strong>{value == null ? 'Pendiente' : `${value.toFixed(2)} ms`}</strong></header><div className="calculation-list">{calculations.map(({ process, totalIo, turnaround, waiting }) => {
+    const result = kind === 'waiting' ? waiting : turnaround;
+    const formula = process.completionTime == null
+      ? 'Esperando finalización'
+      : kind === 'waiting'
+        ? `${process.completionTime} − ${process.arrivalTime} − ${process.totalBurst} − ${totalIo}`
+        : `${process.completionTime} − ${process.arrivalTime}`;
+    return <article key={process.pid}><i style={{ background: processColor(process.pid) }} /><div><strong>{process.nombre}</strong><small>{formula}</small></div><b>{result == null ? '—' : `${result} ms`}</b></article>;
   })}</div><footer><span>Σ valores / {calculations.length} procesos</span><b>{value == null ? 'Disponible al finalizar' : `${value.toFixed(2)} ms`}</b></footer></section>;
 }
 

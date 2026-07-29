@@ -137,11 +137,13 @@ El método `SimulationEngine.step()` procesa los eventos en este orden:
    - Los niveles tienen jerarquía fija: N1 tiene preferencia sobre N2 y N2
      sobre N3.
    - `Prioridad` elige el menor valor numérico.
-   - `SJF` elige la menor ráfaga restante.
+   - `SJF` elige la menor ráfaga restante y desaloja al proceso actual si
+     aparece otro con un tiempo restante estrictamente menor.
    - `RR` y `FIFO` respetan el orden físico de la cola.
 5. **Desalojo:** un proceso de nivel superior puede quitar la CPU al proceso
-   actual. Dentro de una cola de prioridad también puede desalojar un candidato
-   con mejor prioridad.
+   actual. Dentro del mismo nivel también hay desalojo si aparece una prioridad
+   mejor o, con SJF, una ráfaga restante estrictamente menor. Si el proceso
+   desalojado pertenece a una cola RR, vuelve al final de esa cola.
 6. **Ejecución:** el proceso en CPU reduce su ráfaga restante en 1 ms y aumenta
    su CPU acumulada.
 7. **Evento posterior a la CPU:** se comprueba, en este orden, si el proceso:
